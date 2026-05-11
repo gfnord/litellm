@@ -295,10 +295,10 @@ class PanwPrismaAirsHandler(CustomGuardrail):
 
         panw_metadata = {
             "app_user": (
-                metadata.get("app_user") or metadata.get("user") or "litellm_user"
-            )
-            if metadata
-            else "litellm_user",
+                (metadata.get("app_user") or metadata.get("user") or "litellm_user")
+                if metadata
+                else "litellm_user"
+            ),
             "ai_model": metadata.get("model", "unknown") if metadata else "unknown",
             "app_name": app_name_value,
             "source": "litellm_builtin_guardrail",
@@ -315,6 +315,7 @@ class PanwPrismaAirsHandler(CustomGuardrail):
             panw_metadata["litellm_trace_id"] = metadata["litellm_trace_id"]
 
         # Build contents: tool_event takes priority, else prompt/response text
+        contents: List[Dict[str, Any]]
         if tool_event is not None:
             contents = [{"tool_event": tool_event}]
         else:
@@ -1087,9 +1088,11 @@ class PanwPrismaAirsHandler(CustomGuardrail):
                 guardrail_provider=self._PROVIDER_NAME,
                 guardrail_json_response=scan_result,
                 request_data=data,
-                guardrail_status="success"
-                if scan_result.get("action") == "allow"
-                else "guardrail_intervened",
+                guardrail_status=(
+                    "success"
+                    if scan_result.get("action") == "allow"
+                    else "guardrail_intervened"
+                ),
                 start_time=start_time.timestamp(),
                 end_time=end_time.timestamp(),
                 duration=(end_time - start_time).total_seconds(),
@@ -1225,9 +1228,11 @@ class PanwPrismaAirsHandler(CustomGuardrail):
                 guardrail_provider=self._PROVIDER_NAME,
                 guardrail_json_response=scan_result,
                 request_data=data,
-                guardrail_status="success"
-                if scan_result.get("action") == "allow"
-                else "guardrail_intervened",
+                guardrail_status=(
+                    "success"
+                    if scan_result.get("action") == "allow"
+                    else "guardrail_intervened"
+                ),
                 start_time=start_time.timestamp(),
                 end_time=end_time.timestamp(),
                 duration=(end_time - start_time).total_seconds(),
@@ -1448,9 +1453,11 @@ class PanwPrismaAirsHandler(CustomGuardrail):
                     guardrail_provider=self._PROVIDER_NAME,
                     guardrail_json_response=scan_result,
                     request_data=request_data,
-                    guardrail_status="success"
-                    if scan_result.get("action") == "allow"
-                    else "guardrail_intervened",
+                    guardrail_status=(
+                        "success"
+                        if scan_result.get("action") == "allow"
+                        else "guardrail_intervened"
+                    ),
                     start_time=start_time.timestamp(),
                     end_time=end_time.timestamp(),
                     duration=(end_time - start_time).total_seconds(),
@@ -1485,7 +1492,7 @@ class PanwPrismaAirsHandler(CustomGuardrail):
             detail = (
                 e.detail if isinstance(e.detail, dict) else {"message": str(e.detail)}
             )
-            error_obj = dict(detail.get("error", detail))
+            error_obj: Dict[str, Any] = dict(detail.get("error", detail))  # type: ignore[arg-type]
             error_obj["code"] = e.status_code
             yield f"data: {json.dumps({'error': error_obj})}\n\n"
         except Exception as e:

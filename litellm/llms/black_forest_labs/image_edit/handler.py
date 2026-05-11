@@ -15,6 +15,7 @@ import httpx
 import litellm
 from litellm._logging import verbose_logger
 from litellm.litellm_core_utils.litellm_logging import Logging as LiteLLMLoggingObj
+from litellm.litellm_core_utils.url_utils import SSRFError, assert_same_origin
 from litellm.llms.custom_httpx.http_handler import (
     AsyncHTTPHandler,
     HTTPHandler,
@@ -331,6 +332,17 @@ class BlackForestLabsImageEdit:
                 message="No polling_url in BFL response",
             )
 
+        # Reject cross-origin polling URLs — the ``x-key`` auth header
+        # would otherwise leak to whatever URL the upstream returns.
+        # VERIA-51.
+        try:
+            assert_same_origin(polling_url, str(initial_response.request.url))
+        except SSRFError as ssrf_err:
+            raise BlackForestLabsError(
+                status_code=502,
+                message=f"Rejected polling URL: {ssrf_err}",
+            )
+
         # Get just the auth header for polling
         polling_headers = {"x-key": headers.get("x-key", "")}
 
@@ -356,7 +368,12 @@ class BlackForestLabsImageEdit:
 
             if status == "Ready":
                 return response
-            elif status in ["Error", "Failed", "Content Moderated", "Request Moderated"]:
+            elif status in [
+                "Error",
+                "Failed",
+                "Content Moderated",
+                "Request Moderated",
+            ]:
                 raise BlackForestLabsError(
                     status_code=400,
                     message=f"Image generation failed: {status}",
@@ -411,6 +428,17 @@ class BlackForestLabsImageEdit:
                 message="No polling_url in BFL response",
             )
 
+        # Reject cross-origin polling URLs — the ``x-key`` auth header
+        # would otherwise leak to whatever URL the upstream returns.
+        # VERIA-51.
+        try:
+            assert_same_origin(polling_url, str(initial_response.request.url))
+        except SSRFError as ssrf_err:
+            raise BlackForestLabsError(
+                status_code=502,
+                message=f"Rejected polling URL: {ssrf_err}",
+            )
+
         # Get just the auth header for polling
         polling_headers = {"x-key": headers.get("x-key", "")}
 
@@ -436,7 +464,12 @@ class BlackForestLabsImageEdit:
 
             if status == "Ready":
                 return response
-            elif status in ["Error", "Failed", "Content Moderated", "Request Moderated"]:
+            elif status in [
+                "Error",
+                "Failed",
+                "Content Moderated",
+                "Request Moderated",
+            ]:
                 raise BlackForestLabsError(
                     status_code=400,
                     message=f"Image generation failed: {status}",

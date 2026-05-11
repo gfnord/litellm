@@ -52,7 +52,9 @@ class SemanticGuardrail(CustomGuardrail):
         custom_routes_file: Optional[str] = None,
         custom_routes: Optional[List[Dict[str, Any]]] = None,
         on_flagged_action: str = "block",
-        event_hook: Optional[Union[GuardrailEventHooks, List[GuardrailEventHooks], Mode]] = None,
+        event_hook: Optional[
+            Union[GuardrailEventHooks, List[GuardrailEventHooks], Mode]
+        ] = None,
         default_on: bool = False,
         **kwargs,
     ):
@@ -86,11 +88,13 @@ class SemanticGuardrail(CustomGuardrail):
                 "Provide route_templates or custom_routes."
             )
 
-        self.semantic_router: "SemanticRouter" = SemanticGuardRouteLoader.build_semantic_router(
-            routes=routes,
-            litellm_router=llm_router,
-            embedding_model=embedding_model,
-            global_threshold=similarity_threshold,
+        self.semantic_router: "SemanticRouter" = (
+            SemanticGuardRouteLoader.build_semantic_router(
+                routes=routes,
+                litellm_router=llm_router,
+                embedding_model=embedding_model,
+                global_threshold=similarity_threshold,
+            )
         )
 
         self.route_count = len(routes)
@@ -183,11 +187,28 @@ def _extract_user_text(messages: List) -> str:
 
 
 def _extract_response_text(response: Any) -> str:
-    """Extract text from LLM response object."""
+    """Extract text from every LLM response choice."""
     if hasattr(response, "choices") and response.choices:
-        choice = response.choices[0]
-        if hasattr(choice, "message") and choice.message:
-            return choice.message.content or ""
+        text_parts: List[str] = []
+        for choice in response.choices:
+            if hasattr(choice, "message") and choice.message:
+                text = _content_to_text(choice.message.content)
+                if text:
+                    text_parts.append(text)
+        return "\n".join(text_parts)
+    return ""
+
+
+def _content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = [
+            block.get("text")
+            for block in content
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+        return " ".join(part for part in text_parts if part)
     return ""
 
 

@@ -44,19 +44,25 @@ def create_skill_zip(skill_name: str, unique_suffix: Optional[str] = None):
     skill_dir = test_dir / skill_name
 
     # Create a zip file containing the skill directory
+    # When unique_suffix is set, folder name must match skill name in SKILL.md (Anthropic requirement)
+    zip_folder_name = f"{skill_name}-{unique_suffix}" if unique_suffix else skill_name
     zip_path = test_dir / f"{skill_name}.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(skill_dir, arcname=skill_name)
-
         if unique_suffix is not None:
-            # Rewrite SKILL.md with a unique name to avoid API conflicts
+            # Rewrite SKILL.md with a unique name and use matching folder name
             skill_md = (skill_dir / "SKILL.md").read_text()
             skill_md = skill_md.replace(
                 f"name: {skill_name}",
-                f"name: {skill_name}-{unique_suffix}",
+                f"name: {zip_folder_name}",
             )
-            zf.writestr(f"{skill_name}/SKILL.md", skill_md)
+            zf.writestr(f"{zip_folder_name}/SKILL.md", skill_md)
+            # Add any other files in the skill dir (e.g. subdirs) under the new folder name
+            for f in skill_dir.rglob("*"):
+                if f.is_file() and f.name != "SKILL.md":
+                    rel = f.relative_to(skill_dir)
+                    zf.write(f, arcname=f"{zip_folder_name}/{rel}")
         else:
+            zf.write(skill_dir, arcname=skill_name)
             zf.write(skill_dir / "SKILL.md", arcname=f"{skill_name}/SKILL.md")
 
     try:
@@ -138,6 +144,7 @@ class BaseSkillsAPITest(ABC):
         Test listing skills.
         """
         import os
+
         custom_llm_provider = self.get_custom_llm_provider()
         api_key = self.get_api_key()
         api_base = self.get_api_base()
@@ -152,7 +159,7 @@ class BaseSkillsAPITest(ABC):
         print(f"\n=== Testing list_skills ===")
         print("API Key: [REDACTED]")
         print(f"API Base: {api_base}")
-        
+
         response = litellm.list_skills(
             limit=10,
             custom_llm_provider=custom_llm_provider,
@@ -185,17 +192,16 @@ class BaseSkillsAPITest(ABC):
             api_key=api_key,
             api_base=api_base,
         )
-        
+
         # Type assertion for linter
         assert isinstance(list_response, ListSkillsResponse)
         print(f"List response: {list_response}")
-        
+
         # If there are existing skills, use the first one
         if list_response.data and len(list_response.data) > 0:
             skill_id = list_response.data[0].id
             should_cleanup = False
             print(f"Using existing skill: {skill_id}")
-        
 
             # Now get the skill
             response = litellm.get_skill(
@@ -210,17 +216,15 @@ class BaseSkillsAPITest(ABC):
             assert response.id == skill_id
             print(f"GET - Retrieved skill: {response}")
 
-
-
     def test_delete_skill(self):
         """
         Test deleting a skill.
-        
+
         Note: Anthropic requires deleting all skill versions before deleting the skill itself.
         This test is currently skipped as it would require additional API calls to delete versions.
         """
         import time
-        
+
         custom_llm_provider = self.get_custom_llm_provider()
         api_key = self.get_api_key()
         api_base = self.get_api_base()
@@ -228,7 +232,9 @@ class BaseSkillsAPITest(ABC):
         if not api_key:
             pytest.skip(f"No API key provided for {custom_llm_provider}")
 
-        pytest.skip("Anthropic requires deleting all skill versions first - skipping for now")
+        pytest.skip(
+            "Anthropic requires deleting all skill versions first - skipping for now"
+        )
 
         litellm.set_verbose = True
 
@@ -248,7 +254,7 @@ class BaseSkillsAPITest(ABC):
                 api_key=api_key,
                 api_base=api_base,
             )
-        
+
         # Type assertion for linter
         assert isinstance(created_skill, Skill)
         skill_id = created_skill.id
@@ -268,17 +274,10 @@ class BaseSkillsAPITest(ABC):
         print(f"Deleted skill response: {response}")
 
 
-class TestAnthropicSkillsAPI(BaseSkillsAPITest):
-    """
-    Test Anthropic Skills API implementation.
-    """
-
-    def get_custom_llm_provider(self) -> str:
-        return "anthropic"
-
-    def get_api_key(self) -> Optional[str]:
-        return os.environ.get("ANTHROPIC_API_KEY")
-
-    def get_api_base(self) -> Optional[str]:
-        return os.environ.get("ANTHROPIC_API_BASE")
-
+# Live integration tests for the Anthropic Skills API are not run in CI because
+# the Skills API requires beta access (anthropic-beta: skills-2025-10-02) that
+# is not available on the standard API key used in CI.
+#
+# Transformation logic (URL construction, headers, request/response parsing) is
+# covered by unit tests in:
+#   tests/test_litellm/test_anthropic_skills_transformation.py

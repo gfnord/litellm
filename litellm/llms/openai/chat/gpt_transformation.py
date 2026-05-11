@@ -7,6 +7,7 @@ from typing import (
     Any,
     AsyncIterator,
     Coroutine,
+    Dict,
     Iterator,
     List,
     Literal,
@@ -174,7 +175,9 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
             model_specific_params.append("response_format")
 
         # Normalize model name for responses API (e.g., "responses/gpt-4.1" -> "gpt-4.1")
-        model_for_check = model.split("responses/", 1)[1] if "responses/" in model else model
+        model_for_check = (
+            model.split("responses/", 1)[1] if "responses/" in model else model
+        )
         if (
             model_for_check in litellm.open_ai_chat_completion_models
         ) or model_for_check in litellm.open_ai_text_completion_models:
@@ -457,12 +460,13 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
         transformed_messages = await self._transform_messages(
             messages=messages, model=model, is_async=True
         )
-        transformed_messages, tools = (
-            self.remove_cache_control_flag_from_messages_and_tools(
-                model=model,
-                messages=transformed_messages,
-                tools=optional_params.get("tools", []),
-            )
+        (
+            transformed_messages,
+            tools,
+        ) = self.remove_cache_control_flag_from_messages_and_tools(
+            model=model,
+            messages=transformed_messages,
+            tools=optional_params.get("tools", []),
         )
         if tools is not None and len(tools) > 0:
             optional_params["tools"] = tools
@@ -592,9 +596,7 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
             )
 
             translated_choice.finish_reason = map_finish_reason(
-                self._get_finish_reason(
-                    translated_message, choice["finish_reason"]
-                )
+                self._get_finish_reason(translated_message, choice["finish_reason"])
             )
             transformed_choices.append(translated_choice)
 
@@ -783,13 +785,13 @@ class OpenAIChatCompletionStreamingHandler(BaseModelResponseIterator):
     def _map_reasoning_to_reasoning_content(self, choices: list) -> list:
         """
         Map 'reasoning' field to 'reasoning_content' field in delta.
-        
-        Some OpenAI-compatible providers (e.g., GLM-5, hosted_vllm) return 
+
+        Some OpenAI-compatible providers (e.g., GLM-5, hosted_vllm) return
         delta.reasoning, but LiteLLM expects delta.reasoning_content.
-        
+
         Args:
             choices: List of choice objects from the streaming chunk
-            
+
         Returns:
             List of choices with reasoning field mapped to reasoning_content
         """
@@ -798,14 +800,14 @@ class OpenAIChatCompletionStreamingHandler(BaseModelResponseIterator):
             if "reasoning" in delta:
                 delta["reasoning_content"] = delta.pop("reasoning")
         return choices
-    
+
     def chunk_parser(self, chunk: dict) -> ModelResponseStream:
         try:
             choices = chunk.get("choices", [])
             choices = self._map_reasoning_to_reasoning_content(choices)
-            
-            kwargs = {
-                "id": chunk["id"],
+
+            kwargs: Dict[str, Any] = {
+                "id": chunk.get("id"),
                 "object": "chat.completion.chunk",
                 "created": chunk.get("created"),
                 "model": chunk.get("model"),

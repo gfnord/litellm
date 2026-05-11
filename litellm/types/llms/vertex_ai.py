@@ -6,6 +6,13 @@ from typing_extensions import (
     TypedDict,
 )
 
+from litellm.types.llms.openai import EmbeddingInput
+
+# Gemini supports nested-list inputs (e.g. [["text", "image"]]) as an explicit
+# opt-in for combined embeddings — a provider-specific extension of the
+# OpenAI-faithful EmbeddingInput shape.
+GeminiEmbeddingInput = Union[EmbeddingInput, List[List[str]]]
+
 
 class FunctionResponse(TypedDict):
     name: str
@@ -58,12 +65,26 @@ class HttpxBlobType(TypedDict, total=False):
     data: str
 
 
+class HttpxServerSideToolCall(TypedDict, total=False):
+    toolType: str
+    id: str
+    args: dict
+
+
+class HttpxServerSideToolResponse(TypedDict, total=False):
+    toolType: str
+    id: str
+    response: Union[str, dict]
+
+
 class HttpxPartType(TypedDict, total=False):
     text: str
     inlineData: HttpxBlobType
     fileData: FileDataType
     functionCall: HttpxFunctionCall
     functionResponse: FunctionResponse
+    toolCall: HttpxServerSideToolCall
+    toolResponse: HttpxServerSideToolResponse
     executableCode: HttpxExecutableCode
     codeExecutionResult: HttpxCodeExecutionResult
     thought: bool
@@ -174,7 +195,9 @@ class GeminiThinkingConfig(TypedDict, total=False):
 
 GeminiResponseModalities = Literal["TEXT", "IMAGE", "AUDIO", "VIDEO"]
 
-GeminiImageAspectRatio = Literal["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"]
+GeminiImageAspectRatio = Literal[
+    "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"
+]
 
 GeminiImageSize = Literal["1K", "2K", "4K"]
 
@@ -220,6 +243,7 @@ class GenerationConfig(TypedDict, total=False):
 
 class VertexToolName(str, Enum):
     """Enum for Vertex AI tool field names."""
+
     GOOGLE_SEARCH = "googleSearch"
     GOOGLE_SEARCH_RETRIEVAL = "googleSearchRetrieval"
     ENTERPRISE_WEB_SEARCH = "enterpriseWebSearch"
@@ -241,8 +265,9 @@ class Tools(TypedDict, total=False):
     retrieval: Retrieval
 
 
-class ToolConfig(TypedDict):
+class ToolConfig(TypedDict, total=False):
     functionCallingConfig: FunctionCallingConfig
+    includeServerSideToolInvocations: bool
 
 
 class TTL(TypedDict, total=False):
@@ -265,7 +290,9 @@ class UsageMetadata(TypedDict, total=False):
     cacheTokensDetails: List[PromptTokensDetails]
     thoughtsTokenCount: int
     responseTokensDetails: List[PromptTokensDetails]
-    candidatesTokensDetails: List[PromptTokensDetails]  # Alternative key name used in some responses
+    candidatesTokensDetails: List[
+        PromptTokensDetails
+    ]  # Alternative key name used in some responses
 
 
 class TokenCountDetailsResponse(TypedDict):
@@ -305,6 +332,7 @@ class RequestBody(TypedDict, total=False):
     generationConfig: GenerationConfig
     cachedContent: str
     labels: Dict[str, str]
+    serviceTier: str
 
 
 class CachedContentRequestBody(TypedDict, total=False):
@@ -494,8 +522,9 @@ class Instance(TypedDict, total=False):
     video: InstanceVideo
 
 
-class VertexMultimodalEmbeddingRequest(TypedDict):
-    instances: List[Instance]
+class VertexMultimodalEmbeddingRequest(TypedDict, total=False):
+    instances: Required[List[Instance]]
+    parameters: dict
 
 
 class VideoEmbedding(TypedDict):
